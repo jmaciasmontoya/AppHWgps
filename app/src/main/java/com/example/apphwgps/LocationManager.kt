@@ -125,7 +125,11 @@ class LocationManager(private val context: Context) {
                 throw SecurityException("No hay permisos de ubicación")
             }
 
-            fusedLocationClient.lastLocation
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 0)
+                .setWaitForAccurateLocation(true)
+                .build()
+
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 .addOnSuccessListener { location ->
                     location?.let {
                         val locationData = LocationData(
@@ -159,7 +163,7 @@ class LocationManager(private val context: Context) {
      * Inicia las actualizaciones de ubicación.
      */
     @SuppressLint("MissingPermission")
-    fun getLocationUpdates(intervalMs: Long = 5000): Flow<LocationData> = callbackFlow {
+    fun getLocationUpdates(intervalMs: Long = 1000): Flow<LocationData> = callbackFlow {
         try {
             if (!hasLocationPermission()) {
                 throw SecurityException("No hay permisos de ubicación")
@@ -170,9 +174,10 @@ class LocationManager(private val context: Context) {
             }
 
             val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
-                .setMinUpdateIntervalMillis(intervalMs / 2)
+                .setMinUpdateIntervalMillis(intervalMs)
                 .setMaxUpdateDelayMillis(intervalMs * 2)
                 .setMinUpdateDistanceMeters(0f)
+                .setWaitForAccurateLocation(true)
                 .build()
 
             val locationCallback = object : LocationCallback() {

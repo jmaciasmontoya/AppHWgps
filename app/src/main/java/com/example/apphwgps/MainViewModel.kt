@@ -80,6 +80,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onPermissionGranted() {
         _permissionState.value = PermissionState.GRANTED
+        _error.value = null
         startLocationUpdates()
     }
 
@@ -92,21 +93,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 _gpsState.value = GpsState.CHECKING
+                _error.value = null
                 
-                // Primero intentamos obtener la última ubicación conocida
-                locationManager.getLastLocation()
-                    .catch { e ->
-                        Log.e("MainViewModel", "Error al obtener última ubicación: ${e.message}")
-                    }
-                    .collect { locationData ->
-                        _locationData.value = locationData
-                        saveLocationToFile(locationData)
-                    }
-
-                // Luego iniciamos las actualizaciones continuas
+                // Iniciamos directamente las actualizaciones continuas
                 locationManager.getLocationUpdates()
                     .catch { e ->
-                        _error.value = "Error al obtener ubicación: ${e.message}"
+                        if (e is SecurityException) {
+                            _permissionState.value = PermissionState.DENIED
+                            _error.value = "Se requieren permisos de ubicación"
+                        } else {
+                            _error.value = "Error al obtener ubicación: ${e.message}"
+                        }
                         if (e.message?.contains("GPS y Red desactivados") == true) {
                             _gpsState.value = GpsState.DISABLED
                         }
@@ -162,7 +159,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshGpsState() {
         checkGpsState()
         if (_gpsState.value == GpsState.ENABLED) {
-            startLocationUpdates()
+            // Forzar una nueva actualización de ubicación
+            viewModelScope.launch {
+                try {
+                    locationManager.getLastLocation()
+                        .catch { e ->
+                            Log.e("MainViewModel", "Error al obtener última ubicación: ${e.message}")
+                        }
+                        .collect { locationData ->
+                            _locationData.value = locationData
+                            saveLocationToFile(locationData)
+                        }
+                } catch (e: Exception) {
+                    _error.value = "Error al actualizar ubicación: ${e.message}"
+                }
+            }
         }
     }
 
